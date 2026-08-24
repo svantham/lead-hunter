@@ -49,13 +49,22 @@ And their website content: "{context}"
 4. Provide a catchy email subject line.
 '''
 
-STATIC_WP_PITCH = '''Hi {name} Team,
+STATIC_WP_PITCH = '''*{name}*,
 
-I'm reaching out from K2M Services. We build custom software solutions (Mobile App, Website, CRM, ERP, AI Integration, etc.) to help businesses like yours automate workflows and scale efficiently.
+_Innum Excel use panitu irukingala?  Unga business work ah automate pananuma??_
 
-Would you be open to a quick chat to see if we can help streamline your operations?
+Unga business work ah simplify pana: *Mobile App, Website, CRM, ERP, AI Integration, etc* venuma??
+Naanga _customized_ ah pani tharuvom, along with *domain & hosting setup, with annual maintenance plans.*
 
-Check out our work here: https://k2ms.in'''
+> Starting from just ₹10,000. Fully yours, no subscription.
+
+Check our experience at https://k2ms.in
+
+Thank you for taking your time to read this!
+
+Regards,
+K2M Services
+Urapakkam'''
 
 EXCLUDED_PLACE_TYPES = {
     'restaurant', 'cafe', 'fast_food_restaurant', 'bar', 'bakery', 'meal_delivery',

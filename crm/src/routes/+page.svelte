@@ -4,6 +4,7 @@
     import Phone from 'lucide-svelte/icons/phone';
     import Globe from 'lucide-svelte/icons/globe';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
+    import Trash2 from 'lucide-svelte/icons/trash-2';
     let { data } = $props();
     
     let activeTab = $state<'main' | 'call'>('main');
@@ -26,7 +27,22 @@
 
     function getPitchUrl(phone: string, business: string) {
         if (!phone) return '';
-        const text = `Hi ${business} Team,\n\nI'm reaching out from K2M Services. We build custom software solutions (Mobile App, Website, CRM, ERP, AI Integration, etc.) to help businesses like yours automate workflows and scale efficiently.\n\nWould you be open to a quick chat to see if we can help streamline your operations?\n\nCheck out our work here: https://k2ms.in`;
+        const text = `*${business}*,
+
+_Innum Excel use panitu irukingala?  Unga business work ah automate pananuma??_
+
+Unga business work ah simplify pana: *Mobile App, Website, CRM, ERP, AI Integration, etc* venuma??
+Naanga _customized_ ah pani tharuvom, along with *domain & hosting setup, with annual maintenance plans.*
+
+> Starting from just ₹10,000. Fully yours, no subscription.
+
+Check our experience at https://k2ms.in
+
+Thank you for taking your time to read this!
+
+Regards,
+K2M Services
+Urapakkam`;
         let cleanPhone = phone.replace(/\D/g, '');
         if (cleanPhone.startsWith('0')) cleanPhone = '91' + cleanPhone.slice(1);
         else if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
@@ -38,6 +54,33 @@
     <title>CRM | K2MS</title>
 </svelte:head>
 
+{#if !data.authed}
+<div class="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+    <div class="bg-white border-4 border-black rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center">
+        <h1 class="text-2xl font-black uppercase tracking-tighter mb-2">Restricted Access</h1>
+        <p class="text-gray-600 font-bold mb-6">Enter CRM PIN to continue</p>
+        
+        <form method="POST" action="?/login" use:enhance>
+            <input 
+                type="password" 
+                name="pin" 
+                pattern="[0-9]*" 
+                inputmode="numeric"
+                maxlength="4"
+                oninput={(e) => {
+                    if (e.currentTarget.value.length === 4) {
+                        e.currentTarget.form?.requestSubmit();
+                    }
+                }}
+                class="w-full text-center text-2xl font-black tracking-widest border-4 border-black rounded-xl p-4 focus:outline-none focus:ring-4 focus:ring-yellow-200"
+                placeholder="••••"
+                required
+                autofocus
+            />
+        </form>
+    </div>
+</div>
+{:else}
 <div class="max-w-6xl mx-auto p-4 pb-24 space-y-6">
     <header class="flex items-center justify-between py-4">
         <h1 class="text-4xl font-black uppercase tracking-tighter" style="color: var(--color-brand)">
@@ -76,8 +119,27 @@
                     </div>
                 {/if}
                 <div class="flex justify-between items-start mb-4 gap-2">
-                    <div>
+                    <div class="flex items-start gap-2">
                         <h2 class="text-2xl font-bold leading-tight">{lead.business}</h2>
+                        {#if lead.stage === 'main'}
+                            <form method="POST" action="?/deleteLead" use:enhance={() => {
+                                submittingId = lead.id;
+                                return async ({ update }) => {
+                                    await update({ reset: false });
+                                    submittingId = null;
+                                };
+                            }}>
+                                <input type="hidden" name="id" value={lead.id} />
+                                <button 
+                                    type="submit" 
+                                    class="mt-1 text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors active:scale-95" 
+                                    title="Delete Lead"
+                                    onclick={(e) => !confirm('Are you sure you want to delete this lead?') && e.preventDefault()}
+                                >
+                                    <Trash2 size={20} />
+                                </button>
+                            </form>
+                        {/if}
                     </div>
                     
                     {#if lead.stage === 'main'}
@@ -135,7 +197,7 @@
                 <div class="flex gap-2 mt-auto pt-4 border-t-2 border-black">
                     {#if lead.stage === 'main'}
                         {#if lead.phone}
-                            <a href="{getPitchUrl(lead.phone, lead.business)}" target="_blank" rel="noopener noreferrer" 
+                            <a href="{lead.pitch_url || getPitchUrl(lead.phone, lead.business)}" target="_blank" rel="noopener noreferrer" 
                                class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-[#25D366] text-white border-2 border-black rounded-lg px-1 sm:px-2 py-2 font-bold hover:bg-[#1da851] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
                                 <MessageCircle size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Pitch</span>
                             </a>
@@ -247,4 +309,5 @@
             </div>
         </div>
     </div>
+{/if}
 {/if}
