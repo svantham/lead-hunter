@@ -1,0 +1,8 @@
+requests
+beautifulsoup4
+google-genai>=0.3.0
+gspread
+oauth2client
+resend
+rich
+python-dotenv

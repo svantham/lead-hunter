@@ -1,0 +1,18 @@
+# Secrets & Environment
+.env
+service_account.json
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Database & Cache
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+searched_grids.txt
+pipeline.log
