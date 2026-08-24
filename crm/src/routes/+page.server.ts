@@ -4,15 +4,30 @@ import type { PageServerLoad, Actions } from './$types';
 export const load: PageServerLoad = async () => {
     try {
         const rs = await db.execute("SELECT * FROM leads ORDER BY id DESC");
+        const leads = rs.rows;
         
         // Group leads by stage
-        const main = rs.rows.filter(r => r.stage === 'main');
-        const call = rs.rows.filter(r => r.stage === 'call');
+        const main = leads.filter(l => l.stage === 'main');
+        const call = leads.filter(l => l.stage === 'call');
+
+        const statusOrder: Record<string, number> = {
+            'Pending': 1,
+            'Contacted': 2,
+            'Interested': 3,
+            'Converted': 4,
+            'Rejected': 5
+        };
+
+        const sortLeads = (a: any, b: any) => {
+            const orderA = statusOrder[a.status] || 6;
+            const orderB = statusOrder[b.status] || 6;
+            return orderA - orderB;
+        };
         
         return {
             leads: {
-                main: main as any[],
-                call: call as any[]
+                main: main.sort(sortLeads) as any[],
+                call: call.sort(sortLeads) as any[]
             }
         };
     } catch (e) {

@@ -8,6 +8,7 @@
     
     let activeTab = $state<'main' | 'call'>('main');
     let openDropdown = $state<number | null>(null);
+    let scriptModalLead = $state<any>(null);
     
     // Funky colors for status badges
     const statusColors: Record<string, string> = {
@@ -115,17 +116,17 @@
                 </div>
                 
                 {#if lead.remarks}
-                <div class="bg-gray-50 border-2 border-black border-dashed rounded-lg p-3 mb-4 text-sm font-medium whitespace-pre-wrap">
-                    <span class="text-gray-500 uppercase text-xs font-bold block mb-1">Remarks / Needs</span>{lead.remarks}
-                </div>
+                    <div class="bg-gray-50 border-2 border-black border-dashed rounded-lg p-3 mb-4 text-sm font-medium whitespace-pre-wrap">
+                        <span class="text-gray-500 uppercase text-xs font-bold block mb-1">Remarks / Needs</span>{lead.remarks}
+                    </div>
                 {/if}
 
                 <div class="flex gap-2 mt-auto pt-4 border-t-2 border-black">
                     {#if lead.phone}
-                        <a href="tel:{lead.phone}" 
+                        <button type="button" onclick={() => scriptModalLead = lead}
                            class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-[#3b82f6] text-white border-2 border-black rounded-lg px-2 sm:px-4 py-2 font-bold hover:bg-[#2563eb] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
                             <Phone size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Call</span>
-                        </a>
+                        </button>
                     {:else}
                         <button disabled class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg px-2 sm:px-4 py-2 font-bold cursor-not-allowed overflow-hidden">
                             <Phone size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Call</span>
@@ -176,3 +177,43 @@
         {/if}
     </div>
 </div>
+
+{#if scriptModalLead}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onclick={() => scriptModalLead = null} role="button" tabindex="0" onkeypress={(e) => e.key === 'Escape' && (scriptModalLead = null)}>
+        <div class="bg-white border-4 border-black rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto" onclick={(e) => e.stopPropagation()} role="document">
+            <button onclick={() => scriptModalLead = null} class="absolute top-4 right-4 text-gray-400 hover:text-black font-black bg-gray-100 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
+            
+            <h3 class="text-2xl font-black uppercase border-b-4 border-black pb-4 mb-6 tracking-tight">Cold Call Script</h3>
+            
+            <div class="space-y-6 text-lg font-bold text-gray-800">
+                <div class="p-4 bg-blue-50 border-4 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p class="mb-2">Hello, is this <span class="bg-yellow-200 px-1 border border-black rounded uppercase text-black">{scriptModalLead.business}</span>?</p>
+                    <p>This is Sujithra from K2M Software Services.</p>
+                </div>
+                
+                <div class="p-4 bg-purple-50 border-4 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p>Unga business ku <span class="bg-yellow-200 px-1 border border-black rounded text-black">{scriptModalLead.remarks || 'Digital Marketing'}</span> help thevaya? Price pathi laam nenga rombo worry pana venam.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 pt-6 border-t-4 border-black border-dashed">
+                    <div class="p-4 bg-green-100 border-4 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                        <h4 class="font-black text-green-800 flex items-center gap-2 mb-2 text-xl uppercase">✅ Yes</h4>
+                        <p class="text-sm font-semibold text-green-900 leading-relaxed">Ok sir, our technical team will contact you soon for more details, thank you!</p>
+                    </div>
+                    
+                    <div class="p-4 bg-red-100 border-4 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                        <h4 class="font-black text-red-800 flex items-center gap-2 mb-2 text-xl uppercase">❌ No</h4>
+                        <p class="text-sm font-semibold text-red-900 leading-relaxed">Ok sir, future la requirements vantha do contact us, thank you!</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 flex gap-4">
+                <button onclick={() => scriptModalLead = null} class="flex-1 bg-white border-4 border-black text-black font-black uppercase py-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-100 active:scale-95 transition-transform">Close</button>
+                <a href="tel:{scriptModalLead.phone}" class="flex-[2] bg-[#3b82f6] border-4 border-black text-white flex justify-center items-center gap-2 font-black uppercase py-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-[#2563eb] active:scale-95 transition-transform">
+                    <Phone size={20} /> Dial Now
+                </a>
+            </div>
+        </div>
+    </div>
+{/if}
