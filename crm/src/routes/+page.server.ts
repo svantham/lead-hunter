@@ -51,5 +51,18 @@ export const actions: Actions = {
             });
         }
         return { success: true };
+    },
+    moveLead: async ({ request }) => {
+        const data = await request.formData();
+        const id = data.get('id');
+        const status = data.get('status');
+
+        if (id && status) {
+            await db.execute({
+                sql: 'UPDATE leads SET stage = ?, status = ? WHERE id = ?',
+                args: ['main', status, id]
+            });
+        }
+        return { success: true };
     }
 };

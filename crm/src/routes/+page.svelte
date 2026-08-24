@@ -9,6 +9,7 @@
     let activeTab = $state<'main' | 'call'>('main');
     let openDropdown = $state<number | null>(null);
     let scriptModalLead = $state<any>(null);
+    let submittingId = $state<number | null>(null);
     
     // Funky colors for status badges
     const statusColors: Record<string, string> = {
@@ -67,12 +68,19 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {#each activeTab === 'main' ? data.leads.main : data.leads.call as lead (lead.id)}
             <!-- DISPLAY CARD -->
-            <div class="group border-4 border-black rounded-2xl p-5 bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:translate-x-1 transition-all flex flex-col h-full">
+            <div class="relative overflow-hidden group border-4 border-black rounded-2xl p-5 bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:translate-x-1 transition-all flex flex-col h-full">
+                {#if submittingId === lead.id}
+                    <div class="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center">
+                        <div class="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <span class="font-black text-sm uppercase">Updating...</span>
+                    </div>
+                {/if}
                 <div class="flex justify-between items-start mb-4 gap-2">
                     <div>
                         <h2 class="text-2xl font-bold leading-tight">{lead.business}</h2>
                     </div>
                     
+                    {#if lead.stage === 'main'}
                     <!-- FUNKY EDITABLE STATUS PILL -->
                     <div class="relative">
                         <button 
@@ -86,10 +94,12 @@
                         
                         {#if openDropdown === lead.id}
                             <div class="absolute z-20 right-0 mt-2 w-36 bg-white border-4 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col">
-                                {#each ['Pending', 'Contacted', 'Interested', 'Converted', 'Rejected'].filter(s => !(lead.stage === 'call' && s === 'Contacted')) as s}
+                                {#each ['Pending', 'Contacted', 'Interested', 'Converted', 'Rejected'] as s}
                                     <form method="POST" action="?/updateStatus" use:enhance={() => {
+                                        submittingId = lead.id;
                                         return async ({ update }) => {
                                             await update({ reset: false });
+                                            submittingId = null;
                                             openDropdown = null;
                                         };
                                     }}>
@@ -113,6 +123,7 @@
                             ></div>
                         {/if}
                     </div>
+                    {/if}
                 </div>
                 
                 {#if lead.remarks}
@@ -122,17 +133,6 @@
                 {/if}
 
                 <div class="flex gap-2 mt-auto pt-4 border-t-2 border-black">
-                    {#if lead.phone}
-                        <button type="button" onclick={() => scriptModalLead = lead}
-                           class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-[#3b82f6] text-white border-2 border-black rounded-lg px-2 sm:px-4 py-2 font-bold hover:bg-[#2563eb] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-                            <Phone size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Call</span>
-                        </button>
-                    {:else}
-                        <button disabled class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg px-2 sm:px-4 py-2 font-bold cursor-not-allowed overflow-hidden">
-                            <Phone size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Call</span>
-                        </button>
-                    {/if}
-
                     {#if lead.stage === 'main'}
                         {#if lead.phone}
                             <a href="{getPitchUrl(lead.phone, lead.business)}" target="_blank" rel="noopener noreferrer" 
@@ -144,27 +144,58 @@
                                 <MessageCircle size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Pitch</span>
                             </button>
                         {/if}
-                    {/if}
 
-                    {#if lead.idea_url}
-                        <a href="{lead.idea_url}" target="_blank" rel="noopener noreferrer" 
-                           class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-[#00a884] text-white border-2 border-black rounded-lg px-1 sm:px-2 py-2 font-bold hover:bg-[#008f6f] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-                            <MessageCircle size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">{lead.stage === 'main' ? 'Idea' : 'WhatsApp'}</span>
-                        </a>
-                    {:else}
-                        <button disabled class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg px-1 sm:px-2 py-2 font-bold cursor-not-allowed overflow-hidden">
-                            <MessageCircle size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">{lead.stage === 'main' ? 'Idea' : 'WhatsApp'}</span>
-                        </button>
-                    {/if}
-                    
-                    {#if lead.website}
-                        <a href="{lead.website}" target="_blank" class="flex-none flex justify-center items-center p-2 border-2 border-black rounded-lg hover:bg-gray-100 bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-transform ml-auto">
-                            <Globe size={18} />
-                        </a>
-                    {:else}
-                        <button disabled class="flex-none flex justify-center items-center p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 bg-gray-100 ml-auto cursor-not-allowed">
-                            <Globe size={18} />
-                        </button>
+                        {#if lead.idea_url}
+                            <a href="{lead.idea_url}" target="_blank" rel="noopener noreferrer" 
+                               class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-[#00a884] text-white border-2 border-black rounded-lg px-1 sm:px-2 py-2 font-bold hover:bg-[#008f6f] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+                                <MessageCircle size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Idea</span>
+                            </a>
+                        {:else}
+                            <button disabled class="flex-1 flex justify-center items-center gap-1 sm:gap-2 bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg px-1 sm:px-2 py-2 font-bold cursor-not-allowed overflow-hidden">
+                                <MessageCircle size={18} class="shrink-0" /> <span class="truncate hidden min-[360px]:inline">Idea</span>
+                            </button>
+                        {/if}
+                        
+                        {#if lead.website}
+                            <a href="{lead.website}" target="_blank" class="flex-none flex justify-center items-center p-2 border-2 border-black rounded-lg hover:bg-gray-100 bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-transform ml-auto">
+                                <Globe size={18} />
+                            </a>
+                        {:else}
+                            <button disabled class="flex-none flex justify-center items-center p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 bg-gray-100 ml-auto cursor-not-allowed">
+                                <Globe size={18} />
+                            </button>
+                        {/if}
+                    {:else if lead.stage === 'call'}
+                        {#if lead.phone}
+                            <button type="button" onclick={() => scriptModalLead = lead}
+                               class="flex-none w-12 sm:w-14 flex justify-center items-center bg-[#3b82f6] text-white border-2 border-black rounded-lg py-2 font-bold hover:bg-[#2563eb] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+                                <Phone size={20} class="shrink-0" />
+                            </button>
+                        {:else}
+                            <button disabled class="flex-none w-12 sm:w-14 flex justify-center items-center bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300 rounded-lg py-2 font-bold cursor-not-allowed overflow-hidden">
+                                <Phone size={20} class="shrink-0" />
+                            </button>
+                        {/if}
+
+                        <form method="POST" action="?/moveLead" use:enhance={({ submitter }) => {
+                            submittingId = lead.id;
+                            const statusVal = submitter?.getAttribute('value');
+                            return async ({ result, update }) => {
+                                await update({ reset: false });
+                                submittingId = null;
+                                if (result.type === 'success' && statusVal === 'Interested' && lead.idea_url) {
+                                    window.open(lead.idea_url, '_blank');
+                                }
+                            };
+                        }} class="flex-1 flex gap-2 w-full">
+                            <input type="hidden" name="id" value={lead.id} />
+                            <button type="submit" name="status" value="Interested" class="flex-1 bg-[#25D366] text-white border-2 border-black rounded-lg py-2 font-black uppercase text-sm sm:text-base hover:bg-[#1da851] active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden text-ellipsis whitespace-nowrap">
+                                Interested
+                            </button>
+                            <button type="submit" name="status" value="Rejected" class="flex-1 bg-red-500 text-white border-2 border-black rounded-lg py-2 font-black uppercase text-sm sm:text-base hover:bg-red-600 active:scale-95 transition-transform shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] overflow-hidden text-ellipsis whitespace-nowrap">
+                                Reject
+                            </button>
+                        </form>
                     {/if}
                 </div>
             </div>
