@@ -209,19 +209,25 @@ def get_wa_url(phone_e164, text):
     return f'https://wa.me/{phone_e164[-12:]}?text={encoded}'
 
 
-def process_stale_leads():
+def process_stale_leads(client):
+    """
+    Shifts leads from 'main' to 'call' if their status is 'Contacted' 
+    and they are older than 7 days, updating status to 'Pending'.
+    """
     try:
-        conn = sqlite3.connect("leads.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM leads WHERE stage = 'main' AND LOWER(status) = 'contacted' AND phone != '' AND date(date) <= date('now', '-7 days')")
-        rows = cursor.fetchall()
-        if rows:
-            cursor.execute("UPDATE leads SET stage = 'call', status = 'Pending' WHERE stage = 'main' AND LOWER(status) = 'contacted' AND phone != '' AND date(date) <= date('now', '-7 days')")
-            conn.commit()
-            console.print(f"[yellow][Cleanup] Moved {len(rows)} 'Contacted' leads (>1 week) to 'Call' stage.[/yellow]")
-        conn.close()
+        res = client.execute('''
+            UPDATE leads
+            SET stage = 'call', status = 'Pending'
+            WHERE stage = 'main'
+              AND LOWER(status) = 'contacted'
+              AND phone != ''
+              AND date(date) <= date('now', '-7 days')
+        ''')
+        shifted = res.rows_affected
+        if shifted > 0:
+            console.print(f"[bold green]Moved {shifted} stale 'Contacted' leads to the Follow-up stage.[/bold green]")
     except Exception as e:
-        console.print(f"[dim]Stale lead processing skipped: {e}[/dim]")
+        console.print(f"[red]Error processing stale leads: {e}[/red]")
 
 
 def send_email(to_address, subject, pitch_text, business_name):
@@ -293,20 +299,28 @@ def main():
 
     console.print(Panel.fit("K2MS Leads Pipeline Started", style="bold cyan"))
 
-    # --- SQLite Database setup ---
-    console.print("[bold blue]Connecting to SQLite...[/bold blue]")
+    # --- Turso Database setup ---
+    console.print("[bold blue]Connecting to Turso Database...[/bold blue]")
     try:
-        process_stale_leads()
+        # Load from .env if possible
+        from dotenv import load_dotenv
+        load_dotenv("crm/.env")
+
+        db_url = os.environ.get("DATABASE_URL")
+        db_token = os.environ.get("DATABASE_AUTH_TOKEN")
+        if not db_url or not db_token:
+            console.print("[bold red]Missing Turso credentials in crm/.env[/bold red]")
+            sys.exit(1)
+
+        client = libsql_client.create_client_sync(db_url, auth_token=db_token)
         
-        conn = sqlite3.connect("leads.db")
-        cursor = conn.cursor()
+        process_stale_leads(client)
         
-        cursor.execute("SELECT phone, LOWER(business) FROM leads")
-        existing = cursor.fetchall()
-        existing_phones = {str(r[0]).strip() for r in existing if r[0]}
-        existing_names = {str(r[1]).strip() for r in existing if r[1]}
+        existing_res = client.execute("SELECT phone, LOWER(business) FROM leads")
+        existing_phones = {str(r[0]).strip() for r in existing_res.rows if r[0]}
+        existing_names = {str(r[1]).strip() for r in existing_res.rows if r[1]}
         
-        console.print(f"[green][OK] Loaded {len(existing_names)} existing leads.[/green]\n")
+        console.print(f"[green][OK] Loaded {len(existing_names)} existing leads from Turso.[/green]\n")
     except Exception as e:
         console.print(f"[bold red]Database connection failed: {e}[/bold red]")
         sys.exit(1)
@@ -438,15 +452,17 @@ def main():
     else:
         console.print("\n[bold yellow]Grid exhausted.[/bold yellow]")
 
-    # --- Save to SQLite ---
+    # --- Save to Turso ---
     if collected and not args.test:
-        console.print(f"\n[bold blue]Saving {len(collected)} rows to SQLite...[/bold blue]")
+        console.print(f"\n[bold blue]Saving {len(collected)} rows to Turso...[/bold blue]")
         try:
             for r in collected:
-                cursor.execute('''INSERT INTO leads (stage, business, website, phone, email, status, remarks, idea_url, date)
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', r[:9])
-            conn.commit()
-            console.print(f"[green][OK] Saved {len(collected)} rows.[/green]")
+                client.execute(
+                    '''INSERT INTO leads (stage, business, website, phone, email, status, remarks, idea_url, date)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                    r[:9]
+                )
+            console.print(f"[green][OK] Saved {len(collected)} rows to Turso.[/green]")
         except Exception as e:
             console.print(f"[bold red]DB save error: {e}[/bold red]")
     elif args.test:
@@ -455,7 +471,7 @@ def main():
         console.print("\n[yellow]No new leads to save.[/yellow]")
         
     try:
-        conn.close()
+        client.close()
     except:
         pass
 
