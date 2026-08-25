@@ -57,11 +57,35 @@ export const actions: Actions = {
         const data = await request.formData();
         const id = data.get('id');
         const status = data.get('status');
+        const revenue = data.get('revenue');
 
         if (id && status) {
+            if (revenue) {
+                await db.execute({
+                    sql: 'UPDATE leads SET status = ?, revenue = ? WHERE id = ?',
+                    args: [status, revenue, id]
+                });
+            } else {
+                await db.execute({
+                    sql: 'UPDATE leads SET status = ? WHERE id = ?',
+                    args: [status, id]
+                });
+            }
+        }
+        return { success: true };
+    },
+    addLead: async ({ request, cookies }) => {
+        if (cookies.get('pin_auth') !== 'true') return { success: false };
+        const data = await request.formData();
+        const business = data.get('business');
+        const remarks = data.get('remarks');
+        const status = data.get('status') || 'Pending';
+        const date = new Date().toISOString().split('T')[0];
+
+        if (business) {
             await db.execute({
-                sql: 'UPDATE leads SET status = ? WHERE id = ?',
-                args: [status, id]
+                sql: 'INSERT INTO leads (stage, business, remarks, status, date) VALUES (?, ?, ?, ?, ?)',
+                args: ['main', business, remarks, status, date]
             });
         }
         return { success: true };

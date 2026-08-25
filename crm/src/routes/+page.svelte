@@ -5,12 +5,15 @@
     import Globe from 'lucide-svelte/icons/globe';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
     import Trash2 from 'lucide-svelte/icons/trash-2';
+    import Plus from 'lucide-svelte/icons/plus';
     let { data } = $props();
     
     let activeTab = $state<'main' | 'call'>('main');
     let openDropdown = $state<number | null>(null);
     let scriptModalLead = $state<any>(null);
     let submittingId = $state<number | null>(null);
+    let revenueModalLead = $state<any>(null);
+    let showAddLeadModal = $state(false);
     
     // Funky colors for status badges
     const statusColors: Record<string, string> = {
@@ -86,8 +89,19 @@ Urapakkam`;
         <h1 class="text-4xl font-black uppercase tracking-tighter" style="color: var(--color-brand)">
             K2MS <span class="text-black">CRM</span>
         </h1>
-        <div class="bg-black text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-[2px_2px_0px_0px_var(--color-brand)]">
-            {data.leads.main.length + data.leads.call.length} Leads
+        <div class="flex items-center gap-3">
+            {#if activeTab === 'main'}
+            <button 
+                type="button"
+                onclick={() => showAddLeadModal = true} 
+                class="bg-white border-2 border-black px-3 py-1.5 rounded-full text-sm font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:scale-95 flex items-center gap-1"
+            >
+                <Plus size={16} /> New Lead
+            </button>
+            {/if}
+            <div class="bg-black text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-[2px_2px_0px_0px_var(--color-brand)]">
+                {data.leads.main.length + data.leads.call.length} Leads
+            </div>
         </div>
     </header>
 
@@ -157,23 +171,33 @@ Urapakkam`;
                         {#if openDropdown === lead.id}
                             <div class="absolute z-20 right-0 mt-2 w-36 bg-white border-4 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col">
                                 {#each ['Pending', 'Contacted', 'Interested', 'Converted', 'Rejected'] as s}
-                                    <form method="POST" action="?/updateStatus" use:enhance={() => {
-                                        submittingId = lead.id;
-                                        return async ({ update }) => {
-                                            await update({ reset: false });
-                                            submittingId = null;
-                                            openDropdown = null;
-                                        };
-                                    }}>
-                                        <input type="hidden" name="id" value={lead.id} />
-                                        <input type="hidden" name="status" value={s} />
+                                    {#if s === 'Converted'}
                                         <button 
-                                            type="submit" 
+                                            type="button" 
+                                            onclick={() => { openDropdown = null; revenueModalLead = lead; }}
                                             class="w-full text-left px-4 py-3 text-xs font-bold uppercase border-b-2 border-black last:border-b-0 hover:bg-gray-100 {lead.status === s ? getStatusColor(s) : ''}"
                                         >
                                             {s}
                                         </button>
-                                    </form>
+                                    {:else}
+                                        <form method="POST" action="?/updateStatus" use:enhance={() => {
+                                            submittingId = lead.id;
+                                            return async ({ update }) => {
+                                                await update({ reset: false });
+                                                submittingId = null;
+                                                openDropdown = null;
+                                            };
+                                        }}>
+                                            <input type="hidden" name="id" value={lead.id} />
+                                            <input type="hidden" name="status" value={s} />
+                                            <button 
+                                                type="submit" 
+                                                class="w-full text-left px-4 py-3 text-xs font-bold uppercase border-b-2 border-black last:border-b-0 hover:bg-gray-100 {lead.status === s ? getStatusColor(s) : ''}"
+                                            >
+                                                {s}
+                                            </button>
+                                        </form>
+                                    {/if}
                                 {/each}
                             </div>
                             
@@ -188,6 +212,12 @@ Urapakkam`;
                     {/if}
                 </div>
                 
+                {#if lead.revenue}
+                    <div class="bg-green-50 border-2 border-green-800 border-dashed rounded-lg p-3 mb-4 text-sm font-black whitespace-pre-wrap text-green-900 flex items-center justify-between">
+                        <span class="uppercase text-xs">Revenue</span>
+                        <span class="text-lg">₹{lead.revenue}</span>
+                    </div>
+                {/if}
                 {#if lead.remarks}
                     <div class="bg-gray-50 border-2 border-black border-dashed rounded-lg p-3 mb-4 text-sm font-medium whitespace-pre-wrap">
                         <span class="text-gray-500 uppercase text-xs font-bold block mb-1">Remarks / Needs</span>{lead.remarks}
@@ -310,4 +340,85 @@ Urapakkam`;
         </div>
     </div>
 {/if}
+
+{#if showAddLeadModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onclick={() => showAddLeadModal = false} role="button" tabindex="0" onkeypress={(e) => e.key === 'Escape' && (showAddLeadModal = false)}>
+        <div class="bg-white border-4 border-black rounded-3xl p-6 md:p-8 max-w-md w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto" onclick={(e) => e.stopPropagation()} role="document">
+            <button onclick={() => showAddLeadModal = false} class="absolute top-4 right-4 text-gray-400 hover:text-black font-black bg-gray-100 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
+            <h3 class="text-3xl font-black uppercase tracking-tighter mb-6 flex items-center gap-2"><Plus size={28} /> New Lead</h3>
+            
+            <form method="POST" action="?/addLead" use:enhance={() => {
+                submittingId = -1;
+                return async ({ update, result }) => {
+                    await update({ reset: true });
+                    submittingId = null;
+                    if (result.type === 'success') {
+                        showAddLeadModal = false;
+                    } else {
+                        console.error('Failed to save lead. Please try again.');
+                    }
+                };
+            }} class="space-y-4">
+                <div>
+                    <label for="business" class="block font-bold mb-1">Business Name</label>
+                    <input id="business" name="business" type="text" required class="w-full border-4 border-black rounded-xl p-3 focus:outline-none focus:ring-4 focus:ring-yellow-200 font-bold" placeholder="E.g., Supermarket Name" />
+                </div>
+                <div>
+                    <label for="remarks" class="block font-bold mb-1">Remarks</label>
+                    <textarea id="remarks" name="remarks" rows="3" class="w-full border-4 border-black rounded-xl p-3 focus:outline-none focus:ring-4 focus:ring-yellow-200 font-bold" placeholder="Lead details..."></textarea>
+                </div>
+                <div>
+                    <label for="status" class="block font-bold mb-1">Status</label>
+                    <select id="status" name="status" class="w-full border-4 border-black rounded-xl p-3 focus:outline-none focus:ring-4 focus:ring-yellow-200 font-bold bg-white">
+                        <option value="Pending">Pending</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Interested">Interested</option>
+                        <option value="Converted">Converted</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+                <button type="submit" disabled={submittingId === -1} class="w-full bg-[#3b82f6] text-white font-black uppercase border-4 border-black rounded-xl p-4 mt-4 hover:bg-[#2563eb] active:scale-95 transition-transform shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:cursor-not-allowed">
+                    {submittingId === -1 ? 'Saving...' : 'Save Lead'}
+                </button>
+            </form>
+        </div>
+    </div>
+{/if}
+
+{#if revenueModalLead}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onclick={() => revenueModalLead = null} role="button" tabindex="0" onkeypress={(e) => e.key === 'Escape' && (revenueModalLead = null)}>
+        <div class="bg-white border-4 border-black rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] relative my-auto text-center" onclick={(e) => e.stopPropagation()} role="document">
+            <button onclick={() => revenueModalLead = null} class="absolute top-4 right-4 text-gray-400 hover:text-black font-black bg-gray-100 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button>
+            <h3 class="text-3xl font-black uppercase tracking-tighter mb-2 text-green-600">Converted!</h3>
+            <p class="font-bold mb-6 text-gray-600">Enter revenue for {revenueModalLead.business}</p>
+            
+            <form method="POST" action="?/updateStatus" use:enhance={() => {
+                submittingId = revenueModalLead.id;
+                return async ({ update }) => {
+                    await update({ reset: false });
+                    submittingId = null;
+                    revenueModalLead = null;
+                };
+            }}>
+                <input type="hidden" name="id" value={revenueModalLead.id} />
+                <input type="hidden" name="status" value="Converted" />
+                <div class="relative mb-4">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 font-black text-xl text-gray-500">₹</span>
+                    <input 
+                        type="number" 
+                        name="revenue" 
+                        class="w-full text-center pl-8 text-2xl font-black border-4 border-black rounded-xl p-4 focus:outline-none focus:ring-4 focus:ring-green-200"
+                        placeholder="0"
+                        required
+                        autofocus
+                    />
+                </div>
+                <button type="submit" class="w-full bg-green-500 text-white font-black uppercase border-4 border-black rounded-xl p-4 hover:bg-green-600 active:scale-95 transition-transform shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    Confirm Conversion
+                </button>
+            </form>
+        </div>
+    </div>
+{/if}
+
 {/if}
