@@ -2,9 +2,10 @@
     import { enhance } from '$app/forms';
     import MessageCircle from 'lucide-svelte/icons/message-circle';
     import Phone from 'lucide-svelte/icons/phone';
-    import Globe from 'lucide-svelte/icons/globe';
+    
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
     import Trash2 from 'lucide-svelte/icons/trash-2';
+    import ArrowRight from 'lucide-svelte/icons/arrow-right';
     import Plus from 'lucide-svelte/icons/plus';
     let { data } = $props();
     
@@ -26,6 +27,13 @@
     
     function getStatusColor(status: string) {
         return statusColors[status] || 'bg-gray-200 text-gray-900 border-gray-900';
+    }
+
+        function getWebsiteUrl(website: string, business: string) {
+        if (website && website.toLowerCase() !== 'view' && website.startsWith('http')) {
+            return website;
+        }
+        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business)}`;
     }
 
     function getPitchUrl(phone: string, business: string) {
@@ -134,7 +142,11 @@ Urapakkam`;
                 {/if}
                 <div class="flex justify-between items-start mb-4 gap-2">
                     <div class="flex items-start gap-2">
-                        <h2 class="text-2xl font-bold leading-tight">{lead.business}</h2>
+                        <h2 class="text-2xl font-bold leading-tight">
+                        <a href="{getWebsiteUrl(lead.website, lead.business)}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 transition-colors {lead.website && lead.website.toLowerCase() !== 'view' && lead.website.startsWith('http') ? 'underline decoration-2 underline-offset-4' : 'hover:underline'}">
+                            {lead.business}
+                        </a>
+                    </h2>
                         {#if lead.stage === 'main'}
                             <form method="POST" action="?/deleteLead" use:enhance={() => {
                                 submittingId = lead.id;
@@ -248,15 +260,21 @@ Urapakkam`;
                             </button>
                         {/if}
                         
-                        {#if lead.website}
-                            <a href="{lead.website}" target="_blank" class="flex-none flex justify-center items-center p-2 border-2 border-black rounded-lg hover:bg-gray-100 bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-transform ml-auto">
-                                <Globe size={18} />
-                            </a>
-                        {:else}
-                            <button disabled class="flex-none flex justify-center items-center p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 bg-gray-100 ml-auto cursor-not-allowed">
-                                <Globe size={18} />
+                        
+                        <div class="ml-auto flex gap-2">
+                        <form method="POST" action="?/moveToFollowUp" use:enhance={() => {
+                            submittingId = lead.id;
+                            return async ({ update }) => {
+                                await update({ reset: false });
+                                submittingId = null;
+                            };
+                        }} class="flex">
+                            <input type="hidden" name="id" value={lead.id} />
+                            <button type="submit" class="flex justify-center items-center px-3 py-2 border-2 border-black rounded-lg hover:bg-yellow-200 bg-yellow-100 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-transform text-black font-bold h-full" title="Move to Follow-up">
+                                <ArrowRight size={18} class="sm:mr-1" /> <span class="hidden sm:inline">Follow-up</span>
                             </button>
-                        {/if}
+                        </form>
+                        </div>
                     {:else if lead.stage === 'call'}
                         {#if lead.phone}
                             <button type="button" onclick={() => scriptModalLead = lead}

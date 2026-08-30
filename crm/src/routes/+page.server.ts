@@ -104,6 +104,18 @@ export const actions: Actions = {
         }
         return { success: true };
     },
+    moveToFollowUp: async ({ request, cookies }) => {
+        if (cookies.get('pin_auth') !== 'true') return { success: false };
+        const data = await request.formData();
+        const id = data.get('id');
+        if (id) {
+            await db.execute({
+                sql: 'UPDATE leads SET stage = ? WHERE id = ?',
+                args: ['call', id]
+            });
+        }
+        return { success: true };
+    },
     deleteLead: async ({ request, cookies }) => {
         if (cookies.get('pin_auth') !== 'true') return { success: false };
         const data = await request.formData();
