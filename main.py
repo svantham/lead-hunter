@@ -16,7 +16,7 @@ import urllib3
 import resend
 from rich.console import Console
 from rich.panel import Panel
-import sqlite3
+
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -156,11 +156,39 @@ def fetch_places(api_key, lat, lng, radius_meters=10000):
 def sanitize_email(raw_email):
     if not raw_email:
         return None
-    cleaned = raw_email.strip().lower().strip(';:,'"!#* 	\n\r').replace('.@', '@')
+    cleaned = raw_email.strip().lower().strip(""";:,'"!#* \t\n\r""").replace('.@', '@')
     return cleaned if re.match(r'^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$', cleaned) else None
 
 
-def scrape_website(url):
+def extract_phone_from_text(text):
+    """Extract Indian phone numbers from arbitrary text using regex."""
+    patterns = [
+        r'(?:(?:\+91|91|0)[\s\-]?)?(?:[6-9]\d{9})',  # Mobile: +91 / 91 / 0 prefix or plain 10-digit starting 6-9
+        r'(?:(?:\+91|91|0)[\s\-]?)?(?:\d{2,5}[\s\-]?\d{6,8})',  # Landlines with STD code
+    ]
+    found = []
+    for pat in patterns:
+        for m in re.finditer(pat, text):
+            digits = re.sub(r'\D', '', m.group())
+            if len(digits) >= 10:
+                found.append(digits)
+    # Prefer 10-digit mobiles starting 6-9
+    for d in found:
+        if len(d) == 10 and d[0] in '6789':
+            return '+91' + d
+        if len(d) == 12 and d.startswith('91') and d[2] in '6789':
+            return '+' + d
+    # Fallback: return first found if any
+    if found:
+        d = found[0]
+        if len(d) == 10:
+            return '+91' + d
+        if len(d) == 12 and d.startswith('91'):
+            return '+' + d
+    return None
+
+
+def scrape_website(url, genai_client=None):
     try:
         if not url.startswith('http'):
             url = 'https://' + url
@@ -172,8 +200,9 @@ def scrape_website(url):
         )
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
-        text = soup.get_text(separator=' ', strip=True)
+        full_text = soup.get_text(separator=' ', strip=True)
 
+        # --- Email extraction ---
         email = None
         for a in soup.find_all('a', href=True):
             if a['href'].lower().startswith('mailto:'):
@@ -182,17 +211,69 @@ def scrape_website(url):
                     break
 
         if not email:
-            match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
+            match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', full_text)
             if match:
                 found = match.group(0)
                 image_exts = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
                 if not any(found.lower().endswith(ext) for ext in image_exts):
                     email = sanitize_email(found)
 
-        return email, text
+        # --- Phone extraction: target contact/footer sections first ---
+        phone = None
+
+        # 1. Check tel: / callto: links (most reliable)
+        for a in soup.find_all('a', href=True):
+            href_lower = a['href'].lower()
+            if href_lower.startswith('tel:') or href_lower.startswith('callto:'):
+                prefix_len = 7 if href_lower.startswith('callto:') else 4
+                digits = re.sub(r'\D', '', a['href'][prefix_len:])
+                if len(digits) >= 10:
+                    candidate = '+91' + digits[-10:] if not digits.startswith('91') else '+' + digits
+                    # Prefer mobile (last 10 digits starting 6-9) over landline
+                    if not phone or digits[-10] in '6789':
+                        phone = candidate
+
+        # 2. Scrape contact/footer sections with targeted regex
+        if not phone:
+            contact_text = ''
+            for selector in ['footer', '[id*="contact"]', '[class*="contact"]',
+                             '[id*="footer"]', '[class*="footer"]']:
+                sections = soup.select(selector)
+                for sec in sections:
+                    contact_text += ' ' + sec.get_text(separator=' ', strip=True)
+
+            if contact_text.strip():
+                phone = extract_phone_from_text(contact_text)
+
+        # 3. Fall back to scanning full page text
+        if not phone:
+            phone = extract_phone_from_text(full_text)
+
+        # 4. If still nothing and genai_client is available, ask Gemini
+        if not phone and genai_client:
+            snippet = full_text[:3000]
+            try:
+                gem_resp = genai_client.models.generate_content(
+                    model='gemini-2.0-flash-lite',
+                    contents=(
+                        f"Extract only the primary Indian phone number from this text. "
+                        f"Return ONLY the 10-digit number or empty string if none found.\n\n{snippet}"
+                    ),
+                )
+                raw = re.sub(r'\D', '', gem_resp.text.strip())
+                if len(raw) == 10 and raw[0] in '6789':
+                    phone = '+91' + raw
+                    console.print(f"  [dim]Phone found via Gemini: {phone}[/dim]")
+            except Exception:
+                pass
+
+        if phone:
+            console.print(f"  [dim]Phone extracted: {phone}[/dim]")
+
+        return email, full_text, phone
     except Exception as e:
         console.print(f"  [dim]Scraping failed for {url}: {e}[/dim]")
-        return None, ""
+        return None, "", None
 
 
 def is_excluded_place(place, business_name):
@@ -220,8 +301,10 @@ def get_wa_url(phone_e164, text):
 
 def process_stale_leads(client):
     """
-    Shifts leads from 'main' to 'call' if their status is 'Contacted' 
+    Shifts leads from 'main' to 'call' if their status is 'Contacted'
     and they are older than 7 days, updating status to 'Pending'.
+    Leads with no phone (email-only contacted) are intentionally excluded —
+    they can't be called/WhatsApp'd so there's no point moving them to follow-up.
     """
     try:
         res = client.execute('''
@@ -229,7 +312,8 @@ def process_stale_leads(client):
             SET stage = 'call', status = 'Pending'
             WHERE stage = 'main'
               AND LOWER(status) = 'contacted'
-              AND phone != ''
+              AND phone IS NOT NULL
+              AND TRIM(phone) != ''
               AND date(date) <= date('now', '-7 days')
         ''')
         shifted = res.rows_affected
@@ -394,12 +478,16 @@ def main():
                 console.print(f"  [yellow]Dropped: Name already in DB.[/yellow]")
                 continue
 
-            email, page_text = ("", "")
+            email, page_text, scraped_phone = ("", "", None)
             if website:
                 console.print(f"  [dim]Scraping {website}...[/dim]")
-                email, page_text = scrape_website(website)
+                email, page_text, scraped_phone = scrape_website(website, genai_client)
                 if not email:
                     console.print("  [dim]No email found.[/dim]")
+                # Use scraped phone only if Places API didn't provide one
+                if not phone and scraped_phone:
+                    phone = scraped_phone
+                    console.print(f"  [dim]Using phone from website scrape: {phone}[/dim]")
             else:
                 console.print("  [dim]No website.[/dim]")
 
@@ -438,18 +526,21 @@ def main():
                 continue
 
             pitch = pitch.replace(name, f"*{name}*")
-            static_text = STATIC_WP_PITCH.format(name=name)
             status = "Contacted" if (not phone and email) else "Pending"
 
             idea_url = ""
+            pitch_url = ""
             if phone:
                 e164 = format_phone(phone)
-                idea_url = get_wa_url(e164, pitch)
+                formatted_idea = f"*Thank you for your time! Here's what we have in mind for you:*\n\n{pitch}"
+                idea_url = get_wa_url(e164, formatted_idea)
+                static_text = STATIC_WP_PITCH.format(name=name)
+                pitch_url = get_wa_url(e164, static_text)
 
             added_date = datetime.now().strftime('%Y-%m-%d')
             
-            # stage, business, website, phone, email, status, remarks, idea_url, date
-            row = ["main", name, website, phone, email or "", status, needs, idea_url, added_date, pitch, subject]
+            # stage, business, website, phone, email, status, remarks, idea_url, date, pitch_url
+            row = ["main", name, website or gmaps, phone, email or "", status, needs, idea_url, added_date, pitch_url, pitch, subject]
             collected.append(row)
 
             if phone: existing_phones.add(phone)
@@ -467,9 +558,9 @@ def main():
         try:
             for r in collected:
                 client.execute(
-                    '''INSERT INTO leads (stage, business, website, phone, email, status, remarks, idea_url, date)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
-                    r[:9]
+                    '''INSERT INTO leads (stage, business, website, phone, email, status, remarks, idea_url, date, pitch_url)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                    r[:10]
                 )
             console.print(f"[green][OK] Saved {len(collected)} rows to Turso.[/green]")
         except Exception as e:
@@ -490,8 +581,8 @@ def main():
         for row in collected:
             b_name    = row[1]
             l_email   = row[4]
-            l_pitch   = row[9]
-            l_subject = row[10]
+            l_pitch   = row[10]
+            l_subject = row[11]
 
             target = args.test if args.test else l_email
             if not target:
