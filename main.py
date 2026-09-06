@@ -35,7 +35,7 @@ class PitchResponse(BaseModel):
     pitch: str
     subject: str
 
-AI_PITCH_PROMPT = '''You are an expert tech sales consultant for "K2M Services".
+AI_PITCH_PROMPT = '''You are an expert tech sales consultant for "Svantham Software".
 We build custom software (Mobile Apps, Web Apps, CRM, ERP, client portals, internal tools).
 Given this business: "{name}"
 And their website content: "{context}"
@@ -58,12 +58,12 @@ Naanga _customized_ ah pani tharuvom, along with *domain & hosting setup, with a
 
 > Starting from just ₹10,000. Fully yours, no subscription.
 
-Check our experience at https://k2ms.in
+Check our experience at https://svantham.in/tailored
 
 Thank you for taking your time to read this!
 
 Regards,
-K2M Services
+Svantham Software
 Urapakkam'''
 
 EXCLUDED_PLACE_TYPES = {
@@ -253,12 +253,10 @@ def scrape_website(url, genai_client=None):
         if not phone and genai_client:
             snippet = full_text[:3000]
             try:
-                gem_resp = genai_client.models.generate_content(
-                    model='gemini-2.0-flash-lite',
-                    contents=(
-                        f"Extract only the primary Indian phone number from this text. "
-                        f"Return ONLY the 10-digit number or empty string if none found.\n\n{snippet}"
-                    ),
+                chat = genai_client.chats.create(model='gemini-3.5-flash-lite')
+                gem_resp = chat.send_message(
+                    f"Extract only the primary Indian phone number from this text. "
+                    f"Return ONLY the 10-digit number or empty string if none found.\n\n{snippet}"
                 )
                 raw = re.sub(r'\D', '', gem_resp.text.strip())
                 if len(raw) == 10 and raw[0] in '6789':
@@ -302,7 +300,7 @@ def get_wa_url(phone_e164, text):
 def process_stale_leads(client):
     """
     Shifts leads from 'main' to 'call' if their status is 'Contacted'
-    and they are older than 7 days, updating status to 'Pending'.
+    and they are older than 3 days, updating status to 'Pending'.
     Leads with no phone (email-only contacted) are intentionally excluded —
     they can't be called/WhatsApp'd so there's no point moving them to follow-up.
     """
@@ -314,7 +312,7 @@ def process_stale_leads(client):
               AND LOWER(status) = 'contacted'
               AND phone IS NOT NULL
               AND TRIM(phone) != ''
-              AND date(date) <= date('now', '-7 days')
+              AND date(date) <= date('now', '-3 days')
         ''')
         shifted = res.rows_affected
         if shifted > 0:
@@ -337,16 +335,16 @@ def send_email(to_address, subject, pitch_text, business_name):
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; background: #f9f9f9; margin: 0; padding: 40px 20px;">
     <div style="max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 30px;">
         <div style="font-size: 16px;">
-            <img src="https://r2.k2ms.in/logos/email_logo.png" alt="K2M Services" style="max-height: 45px; display: block; margin: 0 auto 25px auto;">
+            <img src="https://r2.svantham.in/tailored/logos/email_logo.png" alt="Svantham Software" style="max-height: 45px; display: block; margin: 0 auto 25px auto;">
             Hi <u>{business_name}</u> Team,<br><br>
             {html_body}<br><br>
             Would you like to schedule a quick call to discuss this further?<br><br>
-            Regards,<br>K2M Services
+            Regards,<br>Svantham Software
             <div style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 12px 16px; border-radius: 6px; margin-top: 20px; font-size: 15px; text-align: center;">
                 <strong>Custom software starting from just ₹10,000.</strong> Fully yours, zero recurring fees.
             </div>
             <p style="margin-top: 25px; font-size: 14px;">
-                <a href="https://k2ms.in" style="color: #2563eb; text-decoration: none; font-weight: 600;">View our work &rarr;</a>
+                <a href="https://svantham.in/tailored" style="color: #2563eb; text-decoration: none; font-weight: 600;">View our work &rarr;</a>
             </p>
         </div>
         <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888; text-align: center;">
@@ -357,7 +355,7 @@ def send_email(to_address, subject, pitch_text, business_name):
 </html>'''
 
     resend.Emails.send({
-        "from": "K2M Services <hello@k2ms.in>",
+        "from": "Svantham Software <hello@svantham.in/tailored>",
         "reply_to": "kaushikkalesh@gmail.com",
         "to": [to_address],
         "subject": subject,
@@ -370,11 +368,11 @@ def send_email(to_address, subject, pitch_text, business_name):
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="K2MS AI Lead Generation Pipeline")
+    parser = argparse.ArgumentParser(description="Svantham AI Lead Generation Pipeline")
     parser.add_argument("--lat",    type=float, default=12.8647896, help="Central Latitude")
     parser.add_argument("--lng",    type=float, default=80.061107,  help="Central Longitude")
     parser.add_argument("--radius", type=float, default=10,         help="Search Radius in km")
-    parser.add_argument("--cap",    type=int,   default=20,         help="Max leads to collect")
+    parser.add_argument("--cap",    type=int,   default=10,         help="Max leads to collect")
     parser.add_argument("--test",   type=str,   metavar="EMAIL",
                         help="Test mode: 1 lead, email to this address, skip sheet save")
     args = parser.parse_args()
@@ -390,7 +388,7 @@ def main():
 
     genai_client = genai.Client(api_key=gemini_key)
 
-    console.print(Panel.fit("K2MS Leads Pipeline Started", style="bold cyan"))
+    console.print(Panel.fit("Svantham Leads Pipeline Started", style="bold cyan"))
 
     # --- Turso Database setup ---
     console.print("[bold blue]Connecting to Turso Database...[/bold blue]")
@@ -496,15 +494,15 @@ def main():
 
             console.print("  [blue]Calling Gemini...[/blue]")
             try:
-                ai_response = genai_client.models.generate_content(
+                chat = genai_client.chats.create(
                     model='gemini-3.5-flash-lite',
-                    contents=prompt,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=PitchResponse,
                         temperature=0.7,
-                    ),
+                    )
                 )
+                ai_response = chat.send_message(prompt)
                 ai_data = json.loads(ai_response.text)
             except Exception as e:
                 if "429" in str(e):
@@ -539,8 +537,8 @@ def main():
 
             added_date = datetime.now().strftime('%Y-%m-%d')
             
-            # stage, business, website, phone, email, status, remarks, idea_url, date, pitch_url
-            row = ["main", name, website or gmaps, phone, email or "", status, needs, idea_url, added_date, pitch_url, pitch, subject]
+            # stage, business, website, phone, email, status, remarks, idea_url, date, pitch_url, segment
+            row = ["main", name, website or gmaps, phone, email or "", status, needs, idea_url, added_date, pitch_url, "regular", pitch, subject]
             collected.append(row)
 
             if phone: existing_phones.add(phone)
@@ -558,9 +556,9 @@ def main():
         try:
             for r in collected:
                 client.execute(
-                    '''INSERT INTO leads (stage, business, website, phone, email, status, remarks, idea_url, date, pitch_url)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
-                    r[:10]
+                    '''INSERT INTO leads (stage, business, website, phone, email, status, remarks, idea_url, date, pitch_url, segment)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                    r[:11]
                 )
             console.print(f"[green][OK] Saved {len(collected)} rows to Turso.[/green]")
         except Exception as e:
@@ -581,8 +579,8 @@ def main():
         for row in collected:
             b_name    = row[1]
             l_email   = row[4]
-            l_pitch   = row[10]
-            l_subject = row[11]
+            l_pitch   = row[11]
+            l_subject = row[12]
 
             target = args.test if args.test else l_email
             if not target:

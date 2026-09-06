@@ -14,5 +14,5 @@ __pycache__/
 *.db-journal
 *.db-wal
 *.db-shm
-searched_grids.txt
+*.txt
 pipeline.log
