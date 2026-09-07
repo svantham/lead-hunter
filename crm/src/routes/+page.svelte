@@ -873,7 +873,7 @@ Urapakkam`;
                                 {/if}
 
                                 <div class="ml-auto flex gap-2">
-                                    {#if !lead.status || lead.status === "Pending"}
+                                    {#if !lead.status || lead.status === "Pending" || lead.status === "Contacted"}
                                         <form
                                             method="POST"
                                             action="?/moveToFollowUp"
@@ -1159,26 +1159,23 @@ Urapakkam`;
                             class="w-full border-4 border-black rounded-xl p-3 focus:outline-none focus:ring-4 focus:ring-yellow-200 font-bold uppercase"
                             bind:value={newLeadSegment}
                         >
-                            <option value="regular">REGULAR</option>
-                            <option value="billie">BILLIE</option>
-                            <option value="referrer">REFERRER</option>
-                            <option value="partner">PARTNER</option>
+                            {#each availableSegments as seg}
+                                <option value={seg}>{seg.toUpperCase()}</option>
+                            {/each}
                         </select>
                     </div>
-                    {#if newLeadSegment === "regular"}
-                        <div>
-                            <label for="remarks" class="block font-bold mb-1"
-                                >Remarks</label
-                            >
-                            <textarea
-                                id="remarks"
-                                name="remarks"
-                                rows="3"
-                                class="w-full border-4 border-black rounded-xl p-3 focus:outline-none focus:ring-4 focus:ring-yellow-200 font-bold"
-                                placeholder="Lead details..."
-                            ></textarea>
-                        </div>
-                    {/if}
+                    <div>
+                        <label for="remarks" class="block font-bold mb-1"
+                            >Remarks</label
+                        >
+                        <textarea
+                            id="remarks"
+                            name="remarks"
+                            rows="3"
+                            class="w-full border-4 border-black rounded-xl p-3 focus:outline-none focus:ring-4 focus:ring-yellow-200 font-bold"
+                            placeholder="Lead details..."
+                        ></textarea>
+                    </div>
                     <div>
                         <label for="status" class="block font-bold mb-1"
                             >Status</label

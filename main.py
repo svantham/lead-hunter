@@ -355,7 +355,7 @@ def send_email(to_address, subject, pitch_text, business_name):
 </html>'''
 
     resend.Emails.send({
-        "from": "Svantham Software <hello@svantham.in/tailored>",
+        "from": "Svantham Software <hello@svantham.in>",
         "reply_to": "kaushikkalesh@gmail.com",
         "to": [to_address],
         "subject": subject,
